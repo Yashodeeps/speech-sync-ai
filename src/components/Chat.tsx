@@ -5,7 +5,7 @@ import Messages from "./Messages";
 import Controls from "./Controls";
 import StartCall from "./StartCall";
 import { ComponentRef, useEffect, useRef, useState } from "react";
-import { useMyContext } from "@/utils/context";
+import { useMyContext } from "@/src/utils/context";
 
 export default function ClientComponent({
   accessToken,
@@ -29,6 +29,8 @@ export default function ClientComponent({
 
     return () => clearInterval(interval);
   }, [stateValue]);
+
+  console.log("State value:", stateValue);
 
   return (
     <div

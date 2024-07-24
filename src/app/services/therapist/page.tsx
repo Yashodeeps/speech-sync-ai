@@ -1,10 +1,10 @@
-import HumeWebSocket from "@/components/HumeWebsocket";
-import { TherapistChat } from "@/components/TherapistChat";
-import { getHumeAccessToken } from "@/utils/getHumeAccessToken";
+import HumeWebSocket from "@/src/components/HumeWebsocket";
+import { TherapistChat } from "@/src/components/TherapistChat";
+import { getHumeAccessToken } from "@/src/utils/getHumeAccessToken";
 import { HumeClient } from "hume";
 import dynamic from "next/dynamic";
 
-const Chat = dynamic(() => import("@/components/Chat"), {
+const Chat = dynamic(() => import("@/src/components/Chat"), {
   ssr: false,
 });
 

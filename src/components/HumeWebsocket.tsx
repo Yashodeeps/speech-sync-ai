@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
-import { useMyContext } from "@/utils/context";
+import { useMyContext } from "@/src/utils/context";
 
 interface Emotion {
   name: string;

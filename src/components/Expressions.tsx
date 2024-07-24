@@ -1,5 +1,8 @@
 "use client";
-import { expressionColors, isExpressionColor } from "@/utils/expressionColors";
+import {
+  expressionColors,
+  isExpressionColor,
+} from "@/src/utils/expressionColors";
 import { motion } from "framer-motion";
 import { CSSProperties } from "react";
 import * as R from "remeda";

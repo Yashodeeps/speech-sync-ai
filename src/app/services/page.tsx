@@ -1,6 +1,6 @@
 "use client";
-import ServiceCard from "@/components/ServiceCard";
-import { Button } from "@/components/ui/button";
+import ServiceCard from "@/src/components/ServiceCard";
+import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/navigation";
 import React from "react";
 
