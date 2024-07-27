@@ -25,7 +25,7 @@ export default function DialogChat({
     >
       <VoiceProvider
         auth={{ type: "accessToken", value: accessToken }}
-        configId="e04a5edc-817e-41fd-b6dc-11e85ebe38de"
+        configId="8aeb8cf3-1573-43f6-b03f-7140e083c0c8"
         sessionSettings={{
           context: {
             text: contextText,
