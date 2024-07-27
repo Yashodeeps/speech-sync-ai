@@ -16,14 +16,16 @@ import { Label } from "@/src/components/ui/label";
 import { Input } from "@/src/components/ui/input";
 import { Separator } from "@/src/components/ui/separator";
 import { ArrowBigRight, ArrowRight, CircleArrowRight } from "lucide-react";
+import { ExpressionsJob } from "@/src/components/ExpressionsJob";
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [isListening, setIsListening] = useState(false);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState();
   const [error, setError] = useState<string | null>(null);
+  const [recordedChunks, setRecordedChunks] = useState<BlobPart[]>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -53,11 +55,14 @@ export default function Home() {
       mediaRecorderRef.current = new MediaRecorder(stream);
 
       const chunks: BlobPart[] = [];
-      mediaRecorderRef.current.ondataavailable = (event) =>
+      mediaRecorderRef.current.ondataavailable = (event) => {
         chunks.push(event.data);
+        setRecordedChunks((chunks) => [...chunks, event.data]);
+      };
       mediaRecorderRef.current.onstop = () => {
         const blob = new Blob(chunks, { type: "video/webm" });
         setRecordedVideo(URL.createObjectURL(blob));
+        console.log("recordedChunks", URL.createObjectURL(blob));
       };
 
       mediaRecorderRef.current.start();
@@ -83,13 +88,17 @@ export default function Home() {
     }
 
     try {
-      const formData = new FormData();
-      const blob = await fetch(recordedVideo).then((r) => r.blob());
-      formData.append("video", blob, "recording.webm");
+      const response = await axios.post("/api/analysis", {
+        recordedChunks: recordedChunks,
+        recordedVideo: recordedVideo,
+      });
 
-      const response = await axios.post("/api/prosody", formData);
-      setAnalysis(response.data.analysis);
-      console.log(response);
+      const jobId = response.data.job_id;
+
+      if (response.data.job_id) {
+        const emotions = await ExpressionsJob({ job_id: jobId });
+        console.log("emotions from page", emotions);
+      }
     } catch (error) {
       console.error("Error analyzing video:", error);
       setError(

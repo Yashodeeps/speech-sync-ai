@@ -171,7 +171,7 @@ const HumeWebSocket: React.FC = () => {
     let intervalId: NodeJS.Timeout | null = null;
 
     if (isStreaming || isActive) {
-      intervalId = setInterval(captureFrame, 1000); // Capture frame every second
+      intervalId = setInterval(captureFrame, 500); // Capture frame every second
     } else if (intervalId) {
       clearInterval(intervalId);
     }

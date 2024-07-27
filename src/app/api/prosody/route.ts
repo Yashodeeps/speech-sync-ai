@@ -1,15 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
+import { NextRequest, NextResponse } from "next/server";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  const { mediaUrl } = req.body;
+export async function POST(req: NextRequest, res: NextRequest) {
+  const { mediaUrl }: any = await req.json();
 
   try {
+    console.log("Analyzing media:", mediaUrl);
     const response = await axios.post(
-      "https://api.hume.ai/v0/batch",
+      "https://api.hume.ai/v0/batch/jobs",
       {
         urls: [mediaUrl],
         models: ["prosody"],
@@ -17,14 +16,15 @@ export default async function handler(
       {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_HUME_API_KEY}`,
+          "X-Hume-Api-Key": `${process.env.NEXT_PUBLIC_HUME_API_KEY}`,
         },
       }
     );
-    console.log(response.data);
 
-    res.status(200).json(response.data);
+    console.log(response);
+
+    return NextResponse.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: "Failed to analyze media" });
+    return NextResponse.json({ error: "Failed to analyze media" });
   }
 }
