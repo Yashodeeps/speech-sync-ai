@@ -18,7 +18,7 @@ export function TherapistChat({ accessToken }: { accessToken: string }) {
     >
       <VoiceProvider
         auth={{ type: "accessToken", value: accessToken }}
-        configId="2363c4ca-b109-4b04-893f-89dcd069e765"
+        configId="ac989939-4a2c-4dc1-a46c-3cde72260a52"
         sessionSettings={{
           context: {
             text: "Ask user about his mentel health and provide guidance",

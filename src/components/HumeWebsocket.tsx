@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { useMyContext } from "@/src/utils/context";
+import { Separator } from "./ui/separator";
 
 interface Emotion {
   name: string;
@@ -189,19 +190,19 @@ const HumeWebSocket: React.FC = () => {
 
   return (
     <div className=" flex  mx-4  gap-4  my-11 w-full ">
-      <div>
+      <div className="w-1/2">
         <video
           className="rounded-xl shadow-lg "
           ref={videoRef}
           muted
           playsInline
           autoPlay
-          style={{ width: "100%", height: "auto", border: "1px solid black" }} // Adjust size and border
+          style={{ width: "80%", height: "auto", border: "1px solid black" }} // Adjust size and border
         />
         <canvas ref={canvasRef} style={{ display: "none" }} />
       </div>
-
-      <div className="flex flex-col justify-center items-center w-full bg-slate-100 my-2 rounded-md">
+      <Separator orientation="vertical" />
+      <div className="flex flex-col justify-center items-center w-1/2  my-2 rounded-md ">
         <ul className="mx-4 text-end">
           {topEmotions.map((emotion, index) => (
             <li key={index} className="">
