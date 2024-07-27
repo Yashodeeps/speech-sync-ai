@@ -21,7 +21,7 @@ const page = () => {
     },
     {
       title: "Debate",
-      description: "Learn to communicate through debates",
+      description: "Learn to be a proficient debater",
       routerPath: "/services/debate",
     },
     {
