@@ -86,9 +86,7 @@
 // }
 
 import DialogChat from "@/src/components/DebateChat";
-import HumeWebSocket from "@/src/components/HumeWebsocket";
 import { getHumeAccessToken } from "@/src/utils/getHumeAccessToken";
-import { HumeClient } from "hume";
 import dynamic from "next/dynamic";
 
 const Chat = dynamic(() => import("@/src/components/Chat"), {
