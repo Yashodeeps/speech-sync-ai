@@ -2,17 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { useMyContext } from "@/src/utils/context";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
-import { CircleArrowRight } from "lucide-react";
+import { CircleArrowRight, Play, Pause } from "lucide-react";
 import { Separator } from "@/src/components/ui/separator";
 
 interface Emotion {
@@ -27,346 +17,228 @@ interface Prediction {
 }
 
 interface Message {
-  language: {
+  prosody: {
     predictions: Prediction[];
   };
 }
 
 export default function Page() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false); // Track streaming status
-  const [topEmotions, setTopEmotions] = useState<Emotion[]>([]); // State for top emotions
+  const [isRecording, setIsRecording] = useState(false);
+  const [topEmotions, setTopEmotions] = useState<Emotion[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [recordedChunks, setRecordedChunks] = useState<BlobPart[]>([]);
-  const [recordedVideo, setRecordedVideo] = useState<string | null>(null);
+  const [audioURL, setAudioURL] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
-  const streamRef = useRef<MediaStream | null>(null); // Track the video stream
-
+  const streamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const audioRef = useRef(new Audio());
+  const chunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (isStreaming) {
-      startStream().catch((err) => {
+    if (isRecording) {
+      startRecording().catch((err) => {
         setError("Failed to start recording: " + err.message);
-        setIsStreaming(false);
+        setIsRecording(false);
       });
     } else {
-      stopStream();
+      stopRecording();
     }
-  }, [isStreaming]);
+  }, [isRecording]);
 
-  console.log("isStreaming", isStreaming);
-
-  const startStream = async () => {
+  const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
         audio: true,
       });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream; // Save stream reference
-        console.log("Video stream assigned:", stream);
 
-        videoRef.current.onloadedmetadata = () => {
-          console.log("Video metadata loaded");
-          videoRef.current?.play().catch((error) => {
-            console.error("Error playing video:", error);
-          });
-        };
-      }
+      streamRef.current = stream;
 
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
 
-      const chunks: BlobPart[] = [];
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        chunks.push(event.data);
-        setRecordedChunks((chunks) => [...chunks, event.data]);
-      };
-      mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunks, { type: "video/webm" });
-        setRecordedVideo(URL.createObjectURL(blob));
-        console.log("recordedChunks", URL.createObjectURL(blob));
-      };
-
-      mediaRecorderRef.current.start();
+      mediaRecorderRef.current.ondataavailable = handleDataAvailable;
+      mediaRecorderRef.current.onstop = handleRecordingStop;
+      mediaRecorderRef.current.start(4000); // Collect data every 4 seconds
 
       socketRef.current = new WebSocket(
         `wss://api.hume.ai/v0/stream/models?api_key=${process.env.NEXT_PUBLIC_HUME_API_KEY}`
       );
 
-      socketRef.current.onopen = () => {
+      socketRef.current.onopen = () =>
         console.log("WebSocket connection established");
-        // const jsonMessage = {
-        //   models: {
-        //     language: {},
-        //     prosody: {},
-        //     face: {},
-        //   },
-        //   data: "Mary had a little lamb",
-        // };
-
-        // if (socketRef.current) {
-        //   socketRef.current.send(JSON.stringify(jsonMessage));
-        // }
-      };
-
-      socketRef.current.onmessage = (event) => {
-        const response: Message = JSON.parse(event.data);
-        console.log("Received message:", response);
-        setMessages((prevMessages) => [...prevMessages, response]);
-        const getTopEmotions = (): Emotion[] => {
-          const emotionMap: Record<string, number> = {};
-          response.language?.predictions.forEach((pred) => {
-            pred.emotions.forEach((emotion) => {
-              if (
-                !emotionMap[emotion.name] ||
-                emotion.score > emotionMap[emotion.name]
-              ) {
-                emotionMap[emotion.name] = emotion.score;
-              }
-            });
-          });
-
-          const allEmotions = Object.entries(emotionMap).map(
-            ([name, score]) => ({
-              name,
-              score,
-            })
-          );
-
-          return allEmotions.sort((a, b) => b.score - a.score).slice(0, 3);
-        };
-
-        const topEmotions = getTopEmotions();
-
-        setTopEmotions(topEmotions);
-      };
-
-      socketRef.current.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        setError("Failed to connect to WebSocket: " + error);
-        setIsStreaming(false);
-      };
-
-      socketRef.current.onclose = (event) => {
+      socketRef.current.onmessage = handleWebSocketMessage;
+      socketRef.current.onerror = handleWebSocketError;
+      socketRef.current.onclose = (event) =>
         console.log("WebSocket connection closed:", event);
-      };
 
-      setIsStreaming(true);
+      setIsRecording(true);
+      setAudioURL(null); // Reset audio URL when starting a new recording
     } catch (error) {
-      console.error("Error starting stream: ", error);
+      console.error("Error starting recording: ", error);
+      setError("Failed to start recording: " + (error as Error).message);
     }
   };
 
-  const stopStream = () => {
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream)
-        .getTracks()
-        .forEach((track) => track.stop());
+  const stopRecording = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
 
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
     }
-    if (videoRef.current && videoRef.current.srcObject instanceof MediaStream) {
-      videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+
+    if (socketRef.current) {
+      socketRef.current.close();
+      socketRef.current = null;
     }
 
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null; // Clear the stream reference
-
-    socketRef.current?.close();
-    socketRef.current = null; // Clear WebSocket reference
-    setIsStreaming(false);
+    setIsRecording(false);
   };
 
-  const captureFrame = () => {
-    if (canvasRef.current && videoRef.current) {
-      const context = canvasRef.current.getContext("2d");
-      if (context) {
-        const width = 320;
-        const height = 240;
-        canvasRef.current.width = width;
-        canvasRef.current.height = height;
+  const handleDataAvailable = (event: BlobEvent) => {
+    if (event.data.size > 0) {
+      chunksRef.current.push(event.data);
+      sendChunkToWebSocket(event.data);
+    }
+  };
 
-        context.drawImage(videoRef.current, 0, 0, width, height);
-        const dataUrl = canvasRef.current.toDataURL("image/jpeg", 0.5); // Reduce quality to 50%
-        const base64Data = dataUrl.split(",")[1];
+  const handleRecordingStop = () => {
+    const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+    const url = URL.createObjectURL(blob);
+    setAudioURL(url);
+    chunksRef.current = [];
+  };
 
-        if (
-          socketRef.current &&
-          socketRef.current.readyState === WebSocket.OPEN
-        ) {
-          const message = JSON.stringify({
-            models: {
-              language: {},
-            },
-            raw_text: true,
-            data: base64Data,
-          });
-          socketRef.current.send(message);
+  const sendChunkToWebSocket = (chunk: Blob) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        try {
+          const base64data = reader.result as string;
+          const base64Content = base64data.split(",")[1];
+          const jsonMessage = {
+            models: { prosody: {} },
+            data: base64Content,
+          };
+
+          socketRef.current?.send(JSON.stringify(jsonMessage));
+        } catch (error) {
+          console.error("Error processing or sending data:", error);
         }
-      }
+      };
+
+      reader.onerror = (error) => console.error("Error reading file:", error);
+      reader.readAsDataURL(chunk);
     }
   };
 
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
-
-    if (isStreaming) {
-      intervalId = setInterval(captureFrame, 500); // Capture frame every second
-    } else if (intervalId) {
-      clearInterval(intervalId);
+  const handleWebSocketMessage = (event: MessageEvent) => {
+    try {
+      const response: Message = JSON.parse(event.data);
+      console.log("Received message:", response);
+      setMessages((prevMessages) => [...prevMessages, response]);
+      setTopEmotions(getTopEmotions(response));
+    } catch (e) {
+      console.error("Error parsing message:", e);
     }
+  };
 
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+  const handleWebSocketError = (error: Event) => {
+    console.error("WebSocket error:", error);
+    setError("Failed to connect to WebSocket: " + error);
+    setIsRecording(false);
+  };
+
+  const getTopEmotions = (response: Message): Emotion[] => {
+    const emotionMap: Record<string, number> = {};
+    response.prosody?.predictions.forEach((pred) => {
+      pred.emotions.forEach((emotion) => {
+        if (
+          !emotionMap[emotion.name] ||
+          emotion.score > emotionMap[emotion.name]
+        ) {
+          emotionMap[emotion.name] = emotion.score;
+        }
+      });
+    });
+
+    return Object.entries(emotionMap)
+      .map(([name, score]) => ({ name, score }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+  };
+
+  const togglePlayback = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
       }
-    };
-  }, [isStreaming]);
+      setIsPlaying(!isPlaying);
+    }
+  };
 
-  console.log("Messages:", messages);
-
-  console.log("Top emotions:", topEmotions);
+  console.log("messages", messages);
 
   return (
-    <>
-      <div className="p-4 flex w-full gap-5">
-        <div className=" p-4 w-1/2">
-          {" "}
-          <h1 className="text-2xl font-semibold">
-            Your Personalized Speaking Coach
-          </h1>
-          {error && <div style={{ color: "red" }}>{error}</div>}
-          <div className="flex">
-            {" "}
-            <ol className="relative border-s border-gray-200 dark:border-gray-700 my-4">
-              <li className="mb-10 ms-4">
-                <div className="absolute w-3 h-3 bg-gray-200 rounded-full mt-1.5 -start-1.5 border border-white dark:border-gray-900 dark:bg-gray-700"></div>
-
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsStreaming(true)}
-                    >
-                      {isStreaming ? "Stop Stream" : "Record Stream"}{" "}
-                      <CircleArrowRight
-                        strokeWidth={1}
-                        size={16}
-                        className="ml-2"
-                      />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Record</DialogTitle>
-                    </DialogHeader>
-                    <div>
-                      <video ref={videoRef} autoPlay muted />
-                      <canvas ref={canvasRef} style={{ display: "none" }} />
-                    </div>
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => setIsStreaming(false)}
-                        >
-                          {isStreaming ? "Stop Stream" : "Start Stream"}
-                        </Button>
-                      </DialogClose>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </li>
-              <li className="mb-10 ms-4">
-                <div className="absolute w-3 h-3 bg-gray-200 rounded-full mt-1.5 -start-1.5 border border-white dark:border-gray-900 dark:bg-gray-700"></div>
-                <Button variant="outline">
-                  Analyse{" "}
-                  {
-                    <CircleArrowRight
-                      strokeWidth={1}
-                      size={16}
-                      className="ml-2"
-                    />
-                  }{" "}
-                </Button>
-              </li>
-              <li className="ms-4">
-                <div className="absolute w-3 h-3 bg-gray-200 rounded-full mt-1.5 -start-1.5 border border-white dark:border-gray-900 dark:bg-gray-700"></div>
-                <Button variant="outline">All done</Button>
-              </li>
-            </ol>{" "}
-            <div>
-              {" "}
-              {recordedVideo && (
-                <div className="p-4">
-                  <video
-                    className="rounded-lg w-full"
-                    src={recordedVideo}
-                    controls
-                  />
-                  <Button variant="default">Analyze Recording</Button>
-                </div>
-              )}
-            </div>
-          </div>
-          {/* {analysis && (
-          <div>
-            <h2>Analysis Complete</h2>
-            <p>You can now start a conversation about your performance.</p>
-            <button onClick={isListening ? stopListening : startListening}>
-              {isListening ? "Stop Conversation" : "Start Conversation"}
-            </button>
-          </div>
-        )} */}
+    <div className="p-4 flex w-full gap-5">
+      <div className="p-4 w-1/2">
+        <h1 className="text-2xl font-semibold">
+          Your Personalized Speaking Coach
+        </h1>
+        {error && <div style={{ color: "red" }}>{error}</div>}
+        <div className="flex">
+          <ol className="relative border-s border-gray-200 dark:border-gray-700 my-4">
+            <li className="mb-10 ms-4">
+              <div className="absolute w-3 h-3 bg-gray-200 rounded-full mt-1.5 -start-1.5 border border-white dark:border-gray-900 dark:bg-gray-700"></div>
+              <Button
+                variant="outline"
+                onClick={() => setIsRecording(!isRecording)}
+              >
+                {isRecording ? "Stop Recording" : "Start Recording"}
+                <CircleArrowRight strokeWidth={1} size={16} className="ml-2" />
+              </Button>
+            </li>
+            <li className="mb-10 ms-4">
+              <div className="absolute w-3 h-3 bg-gray-200 rounded-full mt-1.5 -start-1.5 border border-white dark:border-gray-900 dark:bg-gray-700"></div>
+              <Button variant="outline">
+                Analyse
+                <CircleArrowRight strokeWidth={1} size={16} className="ml-2" />
+              </Button>
+            </li>
+            <li className="ms-4">
+              <div className="absolute w-3 h-3 bg-gray-200 rounded-full mt-1.5 -start-1.5 border border-white dark:border-gray-900 dark:bg-gray-700"></div>
+              <Button variant="outline">All done</Button>
+            </li>
+          </ol>
         </div>
-
-        <Separator orientation="vertical" className="h-screen" />
-        <div className="w-1/2">
-          <h2>Feedback:</h2>
-          {/* <p>{feedback || ""}</p> */}
-        </div>
-      </div>
-      {/* <div className=" flex  mx-4  gap-4  my-11 w-full ">
-        <div>
-          <video
-            className="rounded-xl shadow-lg "
-            ref={videoRef}
-            muted
-            playsInline
-            autoPlay
-            style={{ width: "100%", height: "auto", border: "1px solid black" }} // Adjust size and border
-          />
-          <canvas ref={canvasRef} style={{ display: "none" }} />
-        </div>
-
-        <div className="flex flex-col justify-center items-center w-full bg-slate-100 my-2 rounded-md">
-          <ul className="mx-4 text-end">
-            {topEmotions.map((emotion, index) => (
-              <li key={index} className="">
-                {emotion.name}: {Math.round(emotion.score * 100)}%
-              </li>
-            ))}
-          </ul>
-          <div className="pb-5">
-            <Button
-              className="my-4"
-              onClick={isStreaming ? stopStream : startStream}
-            >
-              {isStreaming ? "Stop video" : "Start video"}
+        {audioURL && (
+          <div className="mt-4">
+            <audio ref={audioRef} src={audioURL} />
+            <Button onClick={togglePlayback}>
+              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+              {isPlaying ? "Pause" : "Play"} Recording
             </Button>
           </div>
-        </div>
-      </div> */}
-    </>
+        )}
+      </div>
+
+      <Separator orientation="vertical" className="h-screen" />
+      <div className="w-1/2">
+        <h2>Feedback:</h2>
+        {topEmotions.map((emotion, index) => (
+          <div key={index}>
+            {emotion.name}: {emotion.score.toFixed(2)}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

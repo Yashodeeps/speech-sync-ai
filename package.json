@@ -10,6 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.3",
     "@humeai/voice": "^0.1.6",
     "@humeai/voice-react": "^0.1.6",
     "@radix-ui/react-alert-dialog": "^1.1.1",

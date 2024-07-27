@@ -5,8 +5,15 @@ import Messages from "./Messages";
 import Controls from "./Controls";
 import StartCall from "./StartCall";
 import { ComponentRef, useEffect, useRef, useState } from "react";
+import { useMyContext } from "@/src/utils/context";
 
-export function TherapistChat({ accessToken }: { accessToken: string }) {
+export default function DialogChat({
+  accessToken,
+  contextText,
+}: {
+  accessToken: string;
+  contextText: string;
+}) {
   const timeout = useRef<number | null>(null);
   const ref = useRef<ComponentRef<typeof Messages> | null>(null);
 
@@ -18,10 +25,10 @@ export function TherapistChat({ accessToken }: { accessToken: string }) {
     >
       <VoiceProvider
         auth={{ type: "accessToken", value: accessToken }}
-        configId="2363c4ca-b109-4b04-893f-89dcd069e765"
+        configId="e04a5edc-817e-41fd-b6dc-11e85ebe38de"
         sessionSettings={{
           context: {
-            text: "Ask user about his mentel health and provide guidance",
+            text: contextText,
             type: "persistent",
           },
         }}

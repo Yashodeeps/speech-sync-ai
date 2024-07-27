@@ -8,16 +8,17 @@ import Github from "./logos/GitHub";
 import pkg from "@/package.json";
 
 export const Nav = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   useLayoutEffect(() => {
     const el = document.documentElement;
 
-    if (el.classList.contains("dark")) {
-      setIsDarkMode(true);
-    } else {
-      setIsDarkMode(false);
+    // Set dark mode as default
+    if (!el.classList.contains("dark")) {
+      el.classList.add("dark");
     }
+
+    setIsDarkMode(true);
   }, []);
 
   const toggleDark = () => {
@@ -33,7 +34,7 @@ export const Nav = () => {
       }
     >
       <div>
-        <h1 className="font-bold text-zinc-800 text-xl">Speech Sync</h1>
+        <h1 className="font-bold text-xl">Speech Sync</h1>
       </div>
       <div className={"ml-auto flex items-center gap-1"}>
         <Button
